@@ -1,0 +1,13 @@
+*.~
+**/*.tgz
+**/*.gz
+**/*.zip
+**/*.gzip
+**/*.log
+**/*.tar
+**/*.sql
+**/.idea
+**/.DS_Store
+/*.html
+/*.bin
+*.env
