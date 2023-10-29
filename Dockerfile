@@ -60,7 +60,7 @@ WORKDIR /var/www/html
 # Install production dependencies
 RUN set -eux \
     && apk add --no-cache \
-        # Only for test/debugging
+# Only for test/debugging
 #        bash \
         c-client \
         ca-certificates \
@@ -85,7 +85,7 @@ RUN set -eux \
         libxpm \
         libxslt \
         libzip \
-        Only for test/debugging
+# Only for test/debugging
 #        openssh \
         rabbitmq-c \
         tidyhtml \
