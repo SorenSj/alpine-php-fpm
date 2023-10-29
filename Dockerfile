@@ -382,13 +382,10 @@ RUN apk add --update icu \
 COPY envsubst.sh /envsubst.sh
 COPY entrypoint.sh /entrypoint.sh
 
-#STOPSIGNAL SIGQUIT
-
 ENTRYPOINT ["/entrypoint.sh"]
         
 # Expose the port on which your application will run
 EXPOSE ${APP_PORT}
-
 
 # Start the PHP-FPM server
 CMD ["php-fpm"]
