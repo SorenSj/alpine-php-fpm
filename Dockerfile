@@ -12,7 +12,7 @@ ARG COMPOSER_VERSION="2.6.4"
 ARG COMPOSER_SUM="5a39f3e2ce5ba391ee3fecb227faf21390f5b7ed5c56f14cab9e1c3048bcf8b8"
 
 # Swoole - https://github.com/swoole/swoole-src
-ARG SWOOLE_VERSION="5.1.0"
+ARG OPENSWOOLE_VERSION="22.0.0"
 
 # Phalcon - https://github.com/phalcon/cphalcon
 ARG PHALCON_VERSION="5.3.1"
@@ -27,6 +27,7 @@ ENV APP_ENV=production \
     PHP_OPCACHE_MAX_WASTED_PERCENTAGE=10 \
     PHP_OPCACHE_REVALIDATE_FREQ=0 \
     PHP_OPCACHE_ENABLE_CLI=1 \
+    PHP_OPENSSL=1 \
     PHP_MEMORY_LIMIT=256M \
     PHP_MAX_EXECUTION_TIME=30 \
     PHP_MAX_INPUT_TIME=60 \
@@ -54,12 +55,8 @@ ENV APP_ENV=production \
 #RUN addgroup -g 1000 -S app && \
 #    adduser -u 1000 -S app -G app
 
-#RUN rm -rf /var/www && mkdir -p /var/www/html
-WORKDIR /var/www/html
-
 # Install production dependencies
-RUN set -eux \
-    && apk add --no-cache \
+RUN set -eux && apk add --no-cache \
 # Only for test/debugging
 #        bash \
         c-client \
@@ -95,14 +92,13 @@ RUN set -eux \
         yaml \
         zlib
 
-RUN apk add --update icu \
+RUN set -eux && apk add --update icu \
     && apk add --update linux-headers \
 \
     && apk add --no-cache --virtual .php-deps \
-    make \
+        make \
 \
 # Install dev dependencies
-    && set -eux \
     && apk add --no-cache --virtual .build-deps \
         $PHPIZE_DEPS \
         autoconf \
@@ -144,9 +140,6 @@ RUN apk add --update icu \
         yaml-dev \
         zlib-dev \
 \
-# Workaround for rabbitmq linking issue
-    && ln -s /usr/lib /usr/local/lib64 \
-
 # Enable ffi if it exists
     && set -eux \
     && if [ -f /usr/local/etc/php/conf.d/docker-php-ext-ffi.ini ]; then \
@@ -169,13 +162,18 @@ RUN apk add --update icu \
     && true \
 \
 # Install amqp
-    && pecl install amqp \
+    && pecl install -o -f amqp \
     && docker-php-ext-enable amqp \
     && true \
 \
 # Install apcu
     && pecl install apcu \
     && docker-php-ext-enable apcu \
+    && true \
+\
+# Install ast
+    && pecl install ast \
+    && docker-php-ext-enable ast \
     && true \
 \
 # Install composer
@@ -233,7 +231,13 @@ RUN apk add --update icu \
         && make install \
         && cd /tmp/) \
     && docker-php-ext-enable igbinary memcached \
+    && true \
 \
+# Install ldap
+#    && docker-php-ext-configure ldap \
+#    && docker-php-ext-install ldap \
+#    && true \
+#\
 # Install mongodb
     && pecl install mongodb \
     && docker-php-ext-enable mongodb \
@@ -247,7 +251,6 @@ RUN apk add --update icu \
     && pecl install oauth \
     && docker-php-ext-enable oauth \
     && true \
-    && true \
 \
 # Install opcache
     && docker-php-ext-install -j$(nproc) opcache \
@@ -257,13 +260,13 @@ RUN apk add --update icu \
     && docker-php-ext-install sockets \
     && docker-php-source extract \
     && mkdir /usr/src/php/ext/openswoole \
-    && curl -sfL https://github.com/openswoole/swoole-src/archive/v22.0.0.tar.gz -o swoole.tar.gz \
+    && curl -sfL https://github.com/openswoole/swoole-src/archive/v${OPENSWOOLE_VERSION}.tar.gz -o swoole.tar.gz \
     && tar xfz swoole.tar.gz --strip-components=1 -C /usr/src/php/ext/openswoole \
     && docker-php-ext-configure openswoole \
         --enable-http2 \
         --enable-mysqlnd \
         --enable-openssl \
-        --enable-sockets --enable-hook-curl --with-postgres \
+        --enable-sockets --enable-hook-curl \
     && docker-php-ext-install -j$(nproc) --ini-name zzz-docker-php-ext-openswoole.ini openswoole \
     && docker-php-ext-enable openswoole \
     && true \
@@ -336,6 +339,11 @@ RUN apk add --update icu \
     && docker-php-ext-install -j$(nproc) tidy \
     && true \
 \
+# Install uploadprogress
+    && pecl install uploadprogress \
+    && docker-php-ext-enable uploadprogress \
+    && true \
+\
 # Install xsl
     && docker-php-ext-install -j$(nproc) xsl \
     && true \
@@ -367,25 +375,38 @@ RUN apk add --update icu \
     && rm -rf /usr/share/php8 \
     && rm -rf /tmp/* /usr/local/lib/php/doc/* /var/cache/apk/* \
     && true \
-
+\
     && set -eux \
 # Fix php.ini settings for enabled extensions
     && chmod +x "$(php -r 'echo ini_get("extension_dir");')"/* \
-
+    && true \
+\
 # Shrink binaries
     && (find /usr/local/bin -type f -print0 | xargs -n1 -0 strip --strip-all -p 2>/dev/null || true) \
     && (find /usr/local/lib -type f -print0 | xargs -n1 -0 strip --strip-all -p 2>/dev/null || true) \
-    && (find /usr/local/sbin -type f -print0 | xargs -n1 -0 strip --strip-all -p 2>/dev/null || true) \
-    && true
+    && (find /usr/local/sbin -type f -print0 | xargs -n1 -0 strip --strip-all -p 2>/dev/null || true)
+
+# Set the working directory
+WORKDIR /var/www/html
+
+VOLUME /var/www/html
+
+# Copy the application code to the container
+COPY . /var/www/html
+
+# Install application dependencies
+# RUN composer install --no-dev --optimize-autoloader
 
 # Copy util scripts
 COPY envsubst.sh /envsubst.sh
 COPY entrypoint.sh /entrypoint.sh
-
+#
 ENTRYPOINT ["/entrypoint.sh"]
-        
+#        
 # Expose the port on which your application will run
 EXPOSE ${APP_PORT}
-
+# Expose the default RabbitMQ port
+EXPOSE ${RABBITMQ_PORT}
+#
 # Start the PHP-FPM server
-CMD ["php-fpm"]
+CMD ["php-fpm", "index.php"]

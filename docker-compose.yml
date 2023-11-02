@@ -2,6 +2,7 @@
 version: "3.9"
 services:
   php-fpm:
+    image: soren.sjostrom/apline-php-fpm:latest
     container_name: php-fpm
     build:
       context: .
